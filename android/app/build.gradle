@@ -19,15 +19,11 @@ android {
             minifyEnabled false
             signingConfig signingConfigs.debug
         }
-        debug {
-            signingConfig signingConfigs.debug
-        }
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
-        targetSdk 34
-        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
