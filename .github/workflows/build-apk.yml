@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,14 +24,21 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
 
       - name: Bundle 78 Gachi Sounds and Offline Assets
         run: |
-          python3 -c "
-          import urllib.request, urllib.parse, json, os
+          python3 - << 'EOF'
+          import urllib.request
+          import urllib.parse
+          import json
+          import os
+          import re
 
           BASE = 'https://deft-babka-206cf3.netlify.app'
           DEST = 'android/app/src/main/assets'
+
           os.makedirs(f'{DEST}/assets/audio', exist_ok=True)
           os.makedirs(f'{DEST}/assets/images/lords', exist_ok=True)
           os.makedirs(f'{DEST}/assets/icons', exist_ok=True)
@@ -36,58 +46,76 @@ jobs:
           os.makedirs(f'{DEST}/js/data', exist_ok=True)
 
           def fetch(rel):
+              rel = rel.lstrip('./').lstrip('/')
               safe_rel = urllib.parse.quote(rel)
               url = f'{BASE}/{safe_rel}'
-              path = f'{DEST}/{rel}'
+              path = os.path.join(DEST, rel)
               os.makedirs(os.path.dirname(path), exist_ok=True)
               urllib.request.urlretrieve(url, path)
+              print(f'Fetched: {rel}')
 
-          # Core web files
-          for f in ['index.html', 'manifest.json', 'sw.js', 'css/style.css', 'js/app.js', 'js/audio.js', 'js/theme.js', 'js/data/sounds.js', 'js/data/lords.js', 'assets/icons/icon-192.png', 'assets/icons/icon-512.png', 'assets/icons/app_icon.svg', 'assets/icons/avatar_placeholder.svg']:
+          core_files = [
+              'index.html',
+              'manifest.json',
+              'sw.js',
+              'css/style.css',
+              'js/app.js',
+              'js/audio.js',
+              'js/theme.js',
+              'js/data/sounds.js',
+              'js/data/lords.js',
+              'assets/icons/icon-192.png',
+              'assets/icons/icon-512.png',
+              'assets/icons/app_icon.svg',
+              'assets/icons/avatar_placeholder.svg'
+          ]
+
+          for f in core_files:
               fetch(f)
-              print('Fetched core file:', f)
 
-          # Parse sounds.js to download all 78 sounds
           with open(f'{DEST}/js/data/sounds.js', 'r', encoding='utf-8') as s_file:
               text = s_file.read()
-              json_str = text.split('const SOUNDS = ')[1].split(';\n\nif')[0]
-              sounds = json.loads(json_str)
 
-          print(f'Downloading {len(sounds)} audio files...')
+          json_part = text.split('const SOUNDS =')[1]
+          json_str = json_part[:json_part.find('];') + 1].strip()
+          sounds = json.loads(json_str)
+
+          print(f'Downloading {len(sounds)} sounds...')
           for s in sounds:
               fetch(f'assets/audio/{s["file"]}')
 
-          # Parse lords.js to download all photos
           with open(f'{DEST}/js/data/lords.js', 'r', encoding='utf-8') as l_file:
-              for line in l_file:
-                  if 'url:' in line:
-                      img_rel = line.split('url:')[1].split("'" if "'" in line else '"')[1].replace('./', '')
-                      fetch(urllib.parse.unquote(img_rel))
+              lords_text = l_file.read()
 
-          print('All 78 sounds and lord assets successfully bundled into APK!')
-          "
+          lord_images = re.findall(r"url:\s*['\"]([^'\"]+)['\"]", lords_text)
+          print(f'Downloading {len(lord_images)} lord images...')
+          for img in lord_images:
+              try:
+                  fetch(img)
+              except Exception as e:
+                  print(f'Warning fetching {img}: {e}')
 
-      - name: Build Standalone Offline APK
-        run: |
-          cd android
-          gradle assembleDebug --stacktrace
+          print('All assets bundled successfully!')
+          EOF
+
+      - name: Build Debug APK
+        working-directory: android
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: GachiPad-Offline-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          if-no-files-found: error
 
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: v1.0.0-offline
+          name: "GachiPad Offline v1.0.0"
+          body: "Full offline standalone Android APK with all 78 sounds included."
           files: android/app/build/outputs/apk/debug/app-debug.apk
-          name: "GachiPad Mobile v1.0 (100% Offline Standalone)"
-          body: "100% автономный оффлайн Гачимучи саундпад. Все 78 звуков зашиты внутрь APK. Не требует интернета, не открывает браузер."
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
