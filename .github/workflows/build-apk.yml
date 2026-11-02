@@ -45,33 +45,36 @@ jobs:
           os.makedirs(f'{DEST}/css', exist_ok=True)
           os.makedirs(f'{DEST}/js/data', exist_ok=True)
 
-          def fetch(rel):
+          def fetch(rel, required=False):
               rel = rel.lstrip('./').lstrip('/')
               safe_rel = urllib.parse.quote(rel)
               url = f'{BASE}/{safe_rel}'
               path = os.path.join(DEST, rel)
               os.makedirs(os.path.dirname(path), exist_ok=True)
-              urllib.request.urlretrieve(url, path)
-              print(f'Fetched: {rel}')
+              try:
+                  urllib.request.urlretrieve(url, path)
+                  print(f'Fetched: {rel}')
+              except Exception as e:
+                  if required:
+                      raise e
+                  print(f'Warning: could not fetch {rel}: {e}')
 
           core_files = [
-              'index.html',
-              'manifest.json',
-              'sw.js',
-              'css/style.css',
-              'js/app.js',
-              'js/audio.js',
-              'js/theme.js',
-              'js/data/sounds.js',
-              'js/data/lords.js',
-              'assets/icons/icon-192.png',
-              'assets/icons/icon-512.png',
-              'assets/icons/app_icon.svg',
-              'assets/icons/avatar_placeholder.svg'
+              ('index.html', True),
+              ('manifest.json', True),
+              ('sw.js', True),
+              ('css/style.css', True),
+              ('js/app.js', True),
+              ('js/audio.js', True),
+              ('js/theme.js', True),
+              ('js/data/sounds.js', True),
+              ('js/data/lords.js', True),
+              ('assets/icons/icon-192.png', False),
+              ('assets/icons/icon-512.png', False)
           ]
 
-          for f in core_files:
-              fetch(f)
+          for f, req in core_files:
+              fetch(f, required=req)
 
           with open(f'{DEST}/js/data/sounds.js', 'r', encoding='utf-8') as s_file:
               text = s_file.read()
@@ -82,7 +85,7 @@ jobs:
 
           print(f'Downloading {len(sounds)} sounds...')
           for s in sounds:
-              fetch(f'assets/audio/{s["file"]}')
+              fetch(f'assets/audio/{s["file"]}', required=False)
 
           with open(f'{DEST}/js/data/lords.js', 'r', encoding='utf-8') as l_file:
               lords_text = l_file.read()
@@ -90,10 +93,7 @@ jobs:
           lord_images = re.findall(r"url:\s*['\"]([^'\"]+)['\"]", lords_text)
           print(f'Downloading {len(lord_images)} lord images...')
           for img in lord_images:
-              try:
-                  fetch(img)
-              except Exception as e:
-                  print(f'Warning fetching {img}: {e}')
+              fetch(img, required=False)
 
           print('All assets bundled successfully!')
           EOF
