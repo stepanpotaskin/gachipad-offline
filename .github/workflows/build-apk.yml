@@ -19,8 +19,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Bundle 78 Gachi Sounds and Offline Assets
         run: |
@@ -55,13 +55,13 @@ jobs:
 
           print(f'Downloading {len(sounds)} audio files...')
           for s in sounds:
-              fetch(f'assets/audio/{s[\"file\"]}')
+              fetch(f'assets/audio/{s["file"]}')
 
           # Parse lords.js to download all photos
           with open(f'{DEST}/js/data/lords.js', 'r', encoding='utf-8') as l_file:
               for line in l_file:
                   if 'url:' in line:
-                      img_rel = line.split('url:')[1].split(\"'\" if \"'\" in line else '\"')[1].replace('./', '')
+                      img_rel = line.split('url:')[1].split("'" if "'" in line else '"')[1].replace('./', '')
                       fetch(urllib.parse.unquote(img_rel))
 
           print('All 78 sounds and lord assets successfully bundled into APK!')
