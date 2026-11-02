@@ -35,6 +35,7 @@ jobs:
           import json
           import os
           import re
+          import shutil
 
           BASE = 'https://deft-babka-206cf3.netlify.app'
           DEST = 'android/app/src/main/assets'
@@ -75,6 +76,12 @@ jobs:
 
           for f, req in core_files:
               fetch(f, required=req)
+
+          # Prepare launcher icons for AAPT
+          for folder in ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi', 'mipmap-xxxhdpi']:
+              res_dir = f'android/app/src/main/res/{folder}'
+              os.makedirs(res_dir, exist_ok=True)
+              shutil.copy(f'{DEST}/assets/icons/icon-192.png', os.path.join(res_dir, 'ic_launcher.png'))
 
           with open(f'{DEST}/js/data/sounds.js', 'r', encoding='utf-8') as s_file:
               text = s_file.read()
